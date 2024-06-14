@@ -1,17 +1,17 @@
-#include <Wifi.h>
+#include <WiFi.h>
 #include <PubSubClient.h>
 #include <HTTPClient.h>
 #include <DHT.h>
-#include <WifiClientSecured.h>
+#include <WiFiClientSecure.h>
 
 //================================== WIFI ========================================================
 
-const char* Nama_WIFI = "Evos Roar";
-const char* Kata_Sandi = "NikidiMundi";
+const char* Nama_WIFI = "enumatechz";
+const char* Kata_Sandi = "3numaTechn0l0gy";
 
 //================================= HIVEMQ =========================================================
 const char* Hive_url = "c195ef0f5f534d53b72397d524b180f3.s1.eu.hivemq.cloud";
-const char* Hive_nama = ""hivemq.webclient.1718283629828"";
+const char* Hive_nama = "hivemq.webclient.1718283629828";
 const char* Hive_pw = "3bRf;8VvK#qd7$AH0<Mu";
 const int Hive_port = 8883;
 
@@ -56,17 +56,17 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 DHT dht(pin_dht, jenis_dht);
 
 WiFiClientSecure espclient;  
-PubSubClient mqtt(espclient);
+PubSubClient client(espclient);
 unsigned long simpanakhir = 0;
 
-#define simpan_pesan(500)
-char pesan[simpan_pesan];
+#define MSG_BUFFER_SIZE (500)
+char pesan[MSG_BUFFER_SIZE];
 
 void setup_wifi() {
   delay(10);
  
   Serial.print("\nnyambung ke .... ");
-  Serial.println(ssid);
+  Serial.println(Nama_WIFI);
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(Nama_WIFI, Kata_Sandi);
@@ -85,9 +85,9 @@ void setup_wifi() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic + "]");
-  // Serial.print("] ");
+  Serial.print("Pesan Diterima [");
+  Serial.print(topic);
+  Serial.print("] ");
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
@@ -98,16 +98,19 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Nunggu MQTT tersambung..");
     String clientId = "ESP32Client";
-    if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
-      Serial.println("connected!");
-      client.publish("testTopic", "Hello World!");
-      client.subscribe("testTopic");
+    if (!client.connected()) {
+    if (client.connect(clientId.c_str(), Hive_nama, Hive_pw)) {
+        Serial.println("Kesambung!!!");
+        client.publish("testTopic", "Hello World!");
+        client.subscribe("testTopic");
     } else {
-      Serial.print("failed, rc = ");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
+        Serial.print("failed, rc = ");
+        Serial.print(client.state());
+        Serial.println(" Coba lagi dalam 5 sekon");
+        delay(5000);
     }
+}
+
   }
 }
 
@@ -133,7 +136,7 @@ void sendToFlask(String data) {
       Serial.print("Response: ");
       Serial.println(response);
     } else {
-      Serial.print("Error on sending POST: ");
+      Serial.print("Error dalam POST: ");
       Serial.println(httpResponseCode);
     }
 
@@ -149,36 +152,37 @@ void setup() {
 
   setup_wifi();
 
-  espClient.setCACert(root_ca);
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
+  espclient.setCACert(sertifikat_ca);
+ client.setServer(Hive_url, Hive_port);
+client.setCallback(callback);
 
   dht.begin();
 }
 
 void loop() {
-  if (!client.connected()) {
+ if (!client.connected()) {
     reconnect();
-  }
-  client.loop();
+}
+
+ client.loop();
 
   unsigned long now = millis();
-  if (now - lastMsg > 2000) {
-    lastMsg = now;
+  if (now -  simpanakhir > 2000) {
+    simpanakhir  = now;
 
-    float t = dht.readTemperature();
-    float h = dht.readHumidity();
+    float suhu = dht.readTemperature();
+    float kelembapan = dht.readHumidity();
 
-    if (isnan(t) || isnan(h)) {
-      Serial.println("Failed to read from DHT sensor!");
+    if (isnan(suhu) || isnan(kelembapan)) {
+      Serial.println("Gagal baca DHTnya!");
       return;
     }
 
-    String temperaturePayload = "{\"sensor\":\"dht22\", \"value\":" + String(t) + "}";
-    String humidityPayload = "{\"sensor\":\"dht22\", \"value\":" + String(h) + "%"+"}";
+    String temperaturePayload = "{suhu:" + String(suhu) +"C}";
+    String humidityPayload = "{kelembapan:" + String(kelembapan) + "%}";
 
-    client.publish("dht22/temperature", temperaturePayload.c_str());
-    client.publish("dht22/humidity", humidityPayload.c_str());
+    client.publish("dht11/suhu", temperaturePayload.c_str());
+    client.publish("dht11/kelembapan", humidityPayload.c_str());
 
     sendToFlask(temperaturePayload);
     sendToFlask(humidityPayload);
